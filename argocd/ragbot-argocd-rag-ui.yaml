@@ -1,0 +1,95 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ragbot-rag-ui
+  namespace: tssc-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: ragbot-bootstrap
+  source:
+    repoURL: https://github.com/org4rong/ragbot-gitops.git
+    targetRevision: HEAD
+    path: ./helm/rag
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters:
+        - name: global.models.llama-3-2-1b-instruct.enabled
+          value: "true"
+        - name: global.models..enabled
+          value: "false"
+        - name: llm-service.secret.enabled
+          value: "false"
+        - name: ingestion-pipeline.enableSigning
+          value: "true"
+        - name: mcp-servers.oracle-sqlcl.enabled
+          value: "false"
+        - name: global.mcp-servers.weather.envSecrets.TAVILY_API_KEY.name
+          value: "tavily-secret"
+        - name: global.mcp-servers.weather.envSecrets.TAVILY_API_KEY.key
+          value: "TAVILY_API_KEY"
+        - name: llama-stack.secrets
+          value: "{}"
+        - name: llama-stack.mcp-servers.weather.enabled
+          value: "true"
+        - name: llama-stack.mcp-servers.weather.uri
+          value: "http://mcp-weather-proxy.ragbot.svc.cluster.local:8000/sse"
+      values: |
+        llama-stack:
+          providers:
+            agents:
+              - provider_id: meta-reference
+                provider_type: inline::meta-reference
+                config:
+                  persistence_store:
+                    type: sqlite
+                    db_path: ${env.SQLITE_STORE_DIR:=~/.llama/distributions/starter}/agents_store.db
+                  responses_store:
+                    type: sqlite
+                    db_path: ${env.SQLITE_STORE_DIR:=~/.llama/distributions/starter}/responses_store.db
+                  default_tool_groups: ["builtin::websearch", "builtin::rag", "mcp::weather"]
+    
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ragbot
+  ignoreDifferences:
+    - group: "*"
+      jqPathExpressions:
+        - '.imagePullSecrets[] | select(.name | contains("-dockercfg-"))'
+      kind: ServiceAccount
+    - group: kubeflow.org
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name == "oauth-proxy")'
+        - '.spec.template.spec.volumes[] | select(.name | IN("trusted-ca", "oauth-config", "tls-certificates"))'
+        - '.spec.template.spec.containers[] | select(.name != "oauth-proxy").env[] | select(.name | IN("PIP_CERT", "REQUESTS_CA_BUNDLE", "SSL_CERT_FILE", "PIPELINES_SSL_SA_CERTS", "GIT_SSL_CAINFO"))'
+        - '.spec.template.spec.containers[] | select(.name != "oauth-proxy").volumeMounts[] | select(.name == "trusted-ca")'
+      kind: Notebook
+    - group: route.openshift.io
+      jsonPointers:
+        - /metadata/annotations/openshift.io~1host.generated
+        - /spec/alternateBackends
+      kind: Route
+    - group: toolhive.stacklok.dev
+      jqPathExpressions:
+        - ".spec.podTemplateSpec.spec.volumes"
+      kind: MCPServer
+    - group: batch
+      kind: Job
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: -1
+      backoff:
+        duration: 5s # the amount to back off. Default unit is seconds, but could also be a duration (e.g. "2m", "1h")
+        factor: 2 # a factor to multiply the base duration after each failed retry
+        maxDuration: 2m # the maximum amount of time allowed for the backoff strategy

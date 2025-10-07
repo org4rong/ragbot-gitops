@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ragbot-bootstrap
+  namespace: tssc-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  destinations:
+    - namespace: tssc-gitops
+      server: https://kubernetes.default.svc
+    - namespace: '*'
+      server: '*'
+  sourceRepos:
+    - '*'
+---
+
