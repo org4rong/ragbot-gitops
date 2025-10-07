@@ -28,7 +28,7 @@ spec:
           value: "true"
         - name: mcp-servers.oracle-sqlcl.enabled
           value: "false"
-        - name: global.mcp-servers.weather.env
+        - name: global.mcp-servers.weather.env.TAVILY_API_KEY
           value: "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"
         - name: llama-stack.secrets.TAVILY_SEARCH_API_KEY
           value: "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"
