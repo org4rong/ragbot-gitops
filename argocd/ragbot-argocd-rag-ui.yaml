@@ -18,7 +18,7 @@ spec:
       valueFiles:
         - values.yaml
       parameters:
-        - name: global.models.llama-3-2-1b-instruct.enabled
+        - name: global.models.llama-3-2-3b-instruct.enabled
           value: "true"
         - name: global.models.llama-guard-3-1b.enabled
           value: "false"
